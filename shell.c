@@ -64,10 +64,10 @@ int parseCommand(char *tcmd) {
     // get the path (token no. 2)
     token = strtok(NULL, delim);
 
-    printf("-shell: cd command to %s\r\n", token); // DEBUG
+    printf("cd command to %s\r\n", token); // DEBUG
     
     if (chdir(token) != 0) {
-      printf("  cd %s: no such Directory\r\n", token);
+      printf("-shell: cd %s: no such Directory\r\n", token);
     } 
   } else {
     // execute program
