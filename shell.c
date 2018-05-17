@@ -109,9 +109,11 @@ int main(void)
     if (fgets(input, MAX_CMD_LEN, stdin) != NULL) {
 
       // remove trailing newline
-      char *pos;
-      if ((pos=strchr(input, '\n')) != NULL) {
-        *pos = '\0';
+      // find position of new line
+      // replace with terminating 0
+      char *newLinePos;
+      if ((newLinePos=strchr(input, '\n')) != NULL) {
+        *newLinePos = '\0';
       }
 
       if (strcmp(input, "\0") != 0) {
@@ -136,8 +138,6 @@ int main(void)
   
     }
   }
-
-  printf("error");
 
 	return 0;
 }
