@@ -39,23 +39,19 @@ void removeTrailingNewLine(char *input) {
   }
 }
 
-char *getCurrentPath(void) {
-  char cwd[MAX_CWD_LEN];
-  return getcwd(cwd, sizeof(cwd));
-}
-
 int parseCommand(char *input) {
   // trim whitespaces
+  // and copy command
   char *command;
-
   command = trimwhitespace(input);
 
   // TODO check and implement PIPE
+  // TODO check and implement BACKGROUND PROCESS &
 
+  // split in command and arguments
   char *cmd;
   char *args;
   const char delim[2] = " ";
-  // split in command and arguments
   cmd = strtok(command, delim);
   args = strtok(NULL, "");
 
@@ -106,14 +102,14 @@ int parseCommand(char *input) {
 int main(void)
 {
   char input[MAX_CMD_LEN];
-  char *path;
+  char cwd[MAX_CWD_LEN];
 
   int result = 0;
   while(result == 0) {
 
-    path = getCurrentPath();
+    getcwd(cwd, sizeof(cwd));
 
-    printf("%s > ", path);
+    printf("%s > ", cwd);
 
     if (fgets(input, MAX_CMD_LEN, stdin) != NULL) {
 
@@ -122,8 +118,6 @@ int main(void)
 
       // just parse when its not an empty string
       if (strcmp(input, "\0") != 0) {
-        // TODO tokenize on & (see below)
-        // fork processes
         result = parseCommand(input);
       }
 
