@@ -1,4 +1,4 @@
-#include <stdio.h> 
+#include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -31,67 +31,76 @@ char *trimwhitespace(char *str)
   return str;
 }
 
+// finds position of newline in string and replaces it with terminating 0
+void removeTrailingNewLine(char *input) {
+  char *newLinePos;
+  if ((newLinePos=strchr(input, '\n')) != NULL) {
+    *newLinePos = '\0';
+  }
+}
+
 char *getCurrentPath(void) {
   char cwd[MAX_CWD_LEN];
   return getcwd(cwd, sizeof(cwd));
 }
 
-int parseCommand(char *tcmd) {
+int parseCommand(char *input) {
   // trim whitespaces
-  char *cmd;
-  cmd = trimwhitespace(tcmd);
+  char *command;
+
+  command = trimwhitespace(input);
 
   // TODO check and implement PIPE
 
+  char *cmd;
+  char *args;
   const char delim[2] = " ";
-  char *token;
-  token = strtok(cmd, delim);
+  // split in command and arguments
+  cmd = strtok(command, delim);
+  args = strtok(NULL, "");
 
-  printf("parse Command: %s\r\n", token); // DEBUG
+  printf("parse Command: %s\r\n", cmd); // DEBUG
+  printf("with Arguments: %s\r\n", args); // DEBUG
 
   int result = 0;
-  if (strcmp(token, "exit") == 0) {
+  if (strcmp(cmd, "exit") == 0) {
     // exit console
     printf("terminating shell...\r\n");
     result = 1;
-  } else if (strcmp(token, "wait") == 0) {
+  } else if (strcmp(cmd, "wait") == 0) {
     // exit console
     printf("wait\r\n");
     result = 1;
-  } else if (strcmp(token, "cd") == 0) {
+  } else if (strcmp(cmd, "cd") == 0) {
     // cd command
-    
-    // get the path (token no. 2)
-    token = strtok(NULL, delim);
 
-    printf("cd command to %s\r\n", token); // DEBUG
-    
-    if (chdir(token) != 0) {
-      printf("-shell: cd %s: no such Directory\r\n", token);
-    } 
+    printf("cd command to %s\r\n", args); // DEBUG
+
+    if (chdir(args) != 0) {
+      printf("-shell: cd %s: no such Directory\r\n", args);
+    }
   } else {
     // execute program
     printf("exec\r\n"); // DEBUG
 
     // create the system exec command
     char exec_cmd[MAX_CMD_LEN] = "./";
-    strcat(exec_cmd, token);
-
-    // TODO add the command parameters
+    strcat(exec_cmd, cmd);
+    // add arguments (if any) to the exec command
+    if (args && strcmp(args, "\0") != 0) {
+      strcat(exec_cmd, " ");
+      strcat(exec_cmd, args);
+    }
 
     printf("exec %s\r\n", exec_cmd); // DEBUG
-          
+
     int status = system(exec_cmd);
-    printf("status %d\r\n", status);
+    printf("status %d\r\n", status); // DEBUG
 
     result = 0;
   }
 
   return result;
-}
-
-int changeDirectory(char *path) {
-  return chdir(path);
 }
 
 int main(void)
@@ -103,39 +112,33 @@ int main(void)
   while(result == 0) {
 
     path = getCurrentPath();
-  
+
     printf("%s > ", path);
 
     if (fgets(input, MAX_CMD_LEN, stdin) != NULL) {
 
-      // remove trailing newline
-      // find position of new line
-      // replace with terminating 0
-      char *newLinePos;
-      if ((newLinePos=strchr(input, '\n')) != NULL) {
-        *newLinePos = '\0';
-      }
+      removeTrailingNewLine(input);
+      trimwhitespace(input);
 
+      // just parse when its not an empty string
       if (strcmp(input, "\0") != 0) {
         // TODO tokenize on & (see below)
         // fork processes
         result = parseCommand(input);
-      } else {
-        result = -1;
       }
-  
+
       // tokenize commands
       // const char delim[2] = "&";
       // char *token;
-  
+
       // token = strtok(input, delim);
-  
-      // while (token != NULL) { 
+
+      // while (token != NULL) {
       //   printf("%s", token);
       //   printf("\n\r");
       //   token = strtok(NULL, delim);
       // }
-  
+
     }
   }
 
