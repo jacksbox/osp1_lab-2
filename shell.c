@@ -9,6 +9,7 @@
 
 #define MAX_CMD_LEN 1024
 #define MAX_CWD_LEN 1024
+#define MAX_ARGS 100
 
 char *trimwhitespace(char *str)
 {
@@ -44,11 +45,84 @@ void removeTrailingNewLine(char *input) {
   }
 }
 
+int shouldStartInBackground(char *cmd) {
+  char *end;
+  end = cmd + strlen(cmd) - 1;
+  if(strcmp(end, "&") == 0) {
+    // replace the & operator
+    *end = 0;
+    return 1;
+  }
+  return 0;
+}
+
+void makeArgArray(char *cmd, char *args, char *argArray) {
+
+}
+
+int forkProcess(char *cmd, char *args) {
+  pid_t proc_id;
+  int status = 0;
+
+  proc_id = fork();
+
+  if (proc_id < 0)
+  {
+    fprintf(stderr, "fork error\n");
+    fflush(stderr);
+    return EXIT_FAILURE;
+  }
+
+  if (proc_id == 0)
+  { /* child process */
+    printf("[child]  process id: %d\n", (int) getpid());
+    printf("[child]  arg_string: %s\r\n", args);
+
+    char **argArray = NULL;
+    // makeArgArray(cmd, args, argArray);
+
+    const char delim[2] = " ";
+    char *token;
+    int i = 0;
+
+    argArray = realloc(argArray, sizeof(char*) * ++i);
+    argArray[i-1] = cmd;
+
+    token = strtok(args, delim);
+
+    while (token != NULL) {
+        argArray = realloc(argArray, sizeof(char*) * ++i);
+        argArray[i-1] = token;
+        token = strtok(NULL, delim);
+    }
+
+    execvp(cmd, argArray);
+    printf("[child]  command: %s\r\n", cmd);
+    for (int j = 0; j < sizeof(argArray); ++j) {
+      printf("[child]  args: %s\r\n", argArray[j]);
+    }
+
+    free(argArray);
+    exit(-1);
+  }
+  else
+  { /* parent */
+    printf("[parent] process id: %d\n", (int) getpid());
+    pid_t child_id = wait(&status);
+
+    printf("[parent] child %d returned: %d\n",
+            child_id, WEXITSTATUS(status));
+  }
+  return 0;
+}
+
 int parseCommand(char *input) {
   // trim whitespaces
   // and copy command
   char *command;
   command = trimwhitespace(input);
+
+  int inBackground = shouldStartInBackground(command);
 
   // TODO check and implement PIPE
   // TODO check and implement BACKGROUND PROCESS &
@@ -62,6 +136,7 @@ int parseCommand(char *input) {
 
   printf("parse Command: %s\r\n", cmd); // DEBUG
   printf("with Arguments: %s\r\n", args); // DEBUG
+  printf("background process: %d\r\n", inBackground); // DEBUG
 
   int result = 0;
   if (strcmp(cmd, "exit") == 0) {
@@ -87,18 +162,23 @@ int parseCommand(char *input) {
     // create the system exec command
     char exec_cmd[MAX_CMD_LEN] = "./";
     strcat(exec_cmd, cmd);
-    // add arguments (if any) to the exec command
-    if (args && strcmp(args, "\0") != 0) {
-      strcat(exec_cmd, " ");
-      strcat(exec_cmd, args);
+
+    if(inBackground == 1) {
+      return forkProcess(exec_cmd, args);
+    } else {
+      // add arguments (if any) to the exec command
+      if (args && strcmp(args, "\0") != 0) {
+        strcat(exec_cmd, " ");
+        strcat(exec_cmd, args);
+      }
+
+      printf("exec %s\r\n", exec_cmd); // DEBUG
+
+      int status = system(exec_cmd);
+      printf("status %d\r\n", status); // DEBUG
+
+      result = 0;
     }
-
-    printf("exec %s\r\n", exec_cmd); // DEBUG
-
-    int status = system(exec_cmd);
-    printf("status %d\r\n", status); // DEBUG
-
-    result = 0;
   }
 
   return result;
