@@ -10,22 +10,27 @@
 #define MAX_CMD_LEN 1024
 #define MAX_CWD_LEN 1024
 
-// shamelessly copied
 char *trimwhitespace(char *str)
 {
   char *end;
 
-  // Trim leading space
-  while(isspace((unsigned char)*str)) str++;
+  // move pointer to first non-space char
+  while (isspace((unsigned char)*str)) {
+    str++;
+  }
 
-  if(*str == 0)  // All spaces?
+  // only whitespaces found
+  if (*str == 0) {
     return str;
+  }
 
-  // Trim trailing space
+  // find first non-space back-to-front
+  // set endpointer position
   end = str + strlen(str) - 1;
-  while(end > str && isspace((unsigned char)*end)) end--;
-
-  // Write new null terminator
+  while (end > str && isspace((unsigned char)*end)) {
+    end--;
+  }
+  // add terminator after endpointer
   *(end+1) = 0;
 
   return str;
@@ -33,9 +38,9 @@ char *trimwhitespace(char *str)
 
 // finds position of newline in string and replaces it with terminating 0
 void removeTrailingNewLine(char *input) {
-  char *newLinePos;
-  if ((newLinePos=strchr(input, '\n')) != NULL) {
-    *newLinePos = '\0';
+  char *end;
+  if ((end=strchr(input, '\n')) != NULL) {
+    *end = 0;
   }
 }
 
