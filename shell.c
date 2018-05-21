@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <ctype.h>
+#include <errno.h>
 
 #define MAX_CMD_LEN 1024
 #define MAX_CWD_LEN 1024
@@ -62,8 +63,9 @@ void makeArgArray(char *cmd, char *args, char *argArray) {
 
 int forkProcess(char *cmd, char *args) {
   pid_t proc_id;
-  int status = 0;
+//  int status = 0;
 
+  
   proc_id = fork();
 
   if (proc_id < 0)
@@ -75,6 +77,7 @@ int forkProcess(char *cmd, char *args) {
 
   if (proc_id == 0)
   { /* child process */
+    close(1);
     printf("[child]  process id: %d\n", (int) getpid());
     printf("[child]  arg_string: %s\r\n", args);
 
@@ -108,10 +111,10 @@ int forkProcess(char *cmd, char *args) {
   else
   { /* parent */
     printf("[parent] process id: %d\n", (int) getpid());
-    pid_t child_id = wait(&status);
+    //pid_t child_id = wait(&status);
 
-    printf("[parent] child %d returned: %d\n",
-            child_id, WEXITSTATUS(status));
+    //printf("[parent] child %d returned: %d\n",
+    //        child_id, WEXITSTATUS(status));
   }
   return 0;
 }
@@ -192,7 +195,10 @@ int main(void)
   int result = 0;
   while(result == 0) {
 
-    getcwd(cwd, sizeof(cwd));
+    if(getcwd(cwd, sizeof(cwd))==NULL) {
+		printf("%s\n",strerror(errno));
+		return -1;	
+	}
 
     printf("%s > ", cwd);
 
