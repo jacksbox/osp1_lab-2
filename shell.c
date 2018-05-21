@@ -64,6 +64,9 @@ void makeArgArray(char *cmd, char *args, char *argArray) {
 
 }
 
+pid_t bg_pid[8];
+pid_t pid_index;
+
 int forkProcess(char *cmd, char *args) {
   pid_t proc_id;
 //  int status = 0;
@@ -114,6 +117,8 @@ int forkProcess(char *cmd, char *args) {
   { /* parent */
     fprintf(stderr,"[parent] process id: %d\n", (int) getpid());
     fprintf(stderr," [child] process id: %d\n", proc_id);
+    bg_pid[pid_index]=proc_id;
+    pid_index = pid_index==8? 0 : pid_index+1;
     //pid_t child_id = wait(&status);
 
     //printf("[parent] child %d returned: %d\n",
@@ -223,15 +228,18 @@ int pipenize(char* input, int pipe_count){
             dup2(pipefd_arr[--pipe_index][0],0);
             continue;
           } else {
-            pipe_index--;
             parseCommand(token_arr[--token_index]);
+            break;
           }
 
       }
       else {
           dup2(pipefd_arr[pipe_index][0],0);
           fprintf(stderr,"\tparent process parses: %s\n",token_arr[token_index] );
-          wait(NULL);
+          int status = 0;
+          pid_t child_id = wait(&status);
+      		printf("[parent] child %d returned: %d\n",
+      		        child_id, WEXITSTATUS(status));
           parseCommand(token_arr[token_index]);
           close(pipefd_arr[pipe_index][0]);
           break;
@@ -249,6 +257,9 @@ int main(void)
 {
   char input[MAX_CMD_LEN];
   char cwd[MAX_CWD_LEN];
+  pid_index=0;
+
+  memset(bg_pid,0,8*sizeof(pid_t));
 
   int result = 0;
   while(result == 0) {
