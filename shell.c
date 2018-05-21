@@ -81,8 +81,8 @@ int forkProcess(char *cmd, char *args) {
   if (proc_id == 0)
   { /* child process */
     close(1);
-    printf("[child]  process id: %d\n", (int) getpid());
-    printf("[child]  arg_string: %s\r\n", args);
+    fprintf(stderr,"[child]  process id: %d\n", (int) getpid());
+    fprintf(stderr,"[child]  arg_string: %s\r\n", args);
 
     char **argArray = NULL;
     // makeArgArray(cmd, args, argArray);
@@ -103,9 +103,9 @@ int forkProcess(char *cmd, char *args) {
     }
 
     execvp(cmd, argArray);
-    printf("[child]  command: %s\r\n", cmd);
+    fprintf(stderr,"[child]  command: %s\r\n", cmd);
     for (int j = 0; j < sizeof(argArray); ++j) {
-      printf("[child]  args: %s\r\n", argArray[j]);
+      fprintf(stderr,"[child]  args: %s\r\n", argArray[j]);
     }
 
     free(argArray);
@@ -140,18 +140,18 @@ int parseCommand(char *input) {
   cmd = strtok(command, " ");
   args = strtok(NULL, "");
 
-  printf("parse Command: %s\r\n", cmd); // DEBUG
-  printf("with Arguments: %s\r\n", args); // DEBUG
-  printf("background process: %d\r\n", inBackground); // DEBUG
+  fprintf(stderr,"parse Command: %s\r\n", cmd); // DEBUG
+  fprintf(stderr,"with Arguments: %s\r\n", args); // DEBUG
+  fprintf(stderr,"background process: %d\r\n", inBackground); // DEBUG
 
   int result = 0;
   if (strcmp(cmd, "exit") == 0) {
     // exit console
-    printf("terminating shell...\r\n");
+    fprintf(stderr,"terminating shell...\r\n");
     result = 1;
   } else if (strcmp(cmd, "wait") == 0) {
     // exit console
-    printf("wait\r\n");
+    fprintf(stderr,"wait\r\n");
     result = 1;
   } else if (strcmp(cmd, "cd") == 0) {
     // cd command
@@ -159,11 +159,11 @@ int parseCommand(char *input) {
     printf("cd command to %s\r\n", args); // DEBUG
 
     if (chdir(args) != 0) {
-      printf("-shell: cd %s: no such Directory\r\n", args);
+      fprintf(stderr,"-shell: cd %s: no such Directory\r\n", args);
     }
   } else {
     // execute program
-    printf("exec\r\n"); // DEBUG
+    fprintf(stderr,"exec\r\n"); // DEBUG
 
     // create the system exec command
     char exec_cmd[MAX_CMD_LEN] = "./";
@@ -178,10 +178,10 @@ int parseCommand(char *input) {
         strcat(exec_cmd, args);
       }
 
-      printf("exec: %s\r\n", exec_cmd); // DEBUG
+      fprintf(stderr,"exec: %s\r\n", exec_cmd); // DEBUG
 
       int status = system(exec_cmd);
-      printf("status: %d\r\n", status); // DEBUG
+      fprintf(stderr,"status: %d\r\n", status); // DEBUG
 
       result = 0;
     }
@@ -194,9 +194,9 @@ int pipenize(char* input){
 
   //int result=0;
   char *token;
-
 // ensure to initiate strtok () only once
   static int count = 0;
+  printf("-> Enter pipenize() - recursion: %d, input: %s\n",count+1,input );
   if(count == 0){
     count = 1;
     token = strtok(input, delim);
@@ -204,7 +204,6 @@ int pipenize(char* input){
     count++;
     token = strtok(NULL, delim);
   }
-
   // if there is (still) a token in  input
   if (token != NULL) {
     printf("%s", token);
@@ -226,18 +225,21 @@ int pipenize(char* input){
         dup2(pipefd[0],0);
         close(pipefd[1]);
         input=strtok(NULL,"");
+        fprintf(stderr,"\tChild process takes: %s\n",input );
         pipenize(input);
         _exit(EXIT_SUCCESS);
     }
     else {/* Parent writes argv[1] to pipe */
         close(pipefd[0]);          /* Close unused read end */
         dup2(pipefd[1],1);
+        fprintf(stderr,"\tparent process parses: %s\n",token );
         parseCommand(token);
         close(pipefd[1]);          /* Reader will see EOF */
         wait(NULL);                /* Wait for child */
 
     }
   } else {
+    fprintf(stderr,"\tparsing token: %s\n",token );
     return parseCommand(token);
   }
 
