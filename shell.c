@@ -60,12 +60,29 @@ int shouldStartInBackground(char *cmd) {
   return 0;
 }
 
-void makeArgArray(char *cmd, char *args, char *argArray) {
 
+
+struct bg_proc_status{
+  pid_t pid;
+  int status;
+  int errorno;
+  struct bg_proc_status *next;
+};
+struct bg_proc_status *bg_proc_status_ptr_first;
+
+
+void insert_bg_proc(struct bg_proc_status* in) {
+  struct bg_proc_status *bgps = bg_proc_status_ptr_first;
+  if(bgps == NULL) {
+    bgps = in;
+    bg_proc_status_ptr_first = bgps;
+    return;
+  }
+  while(bgps->next != NULL){
+    bgps = bgps->next;
+  }
+  bgps->next = in;
 }
-
-pid_t bg_pid[8];
-pid_t pid_index;
 
 int forkProcess(char *cmd, char *args) {
   pid_t proc_id;
@@ -94,6 +111,13 @@ int forkProcess(char *cmd, char *args) {
     char *token;
     int i = 0;
 
+    struct bg_proc_status *new_bg_proc = (struct bg_proc_status*)malloc(sizeof(struct bg_proc_status));
+    insert_bg_proc(new_bg_proc);
+    new_bg_proc->pid = getpid();
+    new_bg_proc->status=0;
+    new_bg_proc->errorno=0;
+    new_bg_proc->next=NULL;
+
     argArray = realloc(argArray, sizeof(char*) * ++i);
     argArray[i-1] = cmd;
 
@@ -105,11 +129,14 @@ int forkProcess(char *cmd, char *args) {
         token = strtok(NULL, delim);
     }
 
-    execvp(cmd, argArray);
-  //  fprintf(stderr,"[child]  command: %s\r\n", cmd);
-    for (int j = 0; j < sizeof(argArray); ++j) {
-      printf("[child]  args: %s\r\n", argArray[j]);
-    }
+    int status = execvp(cmd, argArray);
+
+    new_bg_proc->status=status;
+    new_bg_proc->errorno=errno;
+
+  /*  for (int j = 0; j < sizeof(argArray); ++j) {
+      fprintf(stderr,"[child]  args: %s\r\n", argArray[j]);
+    }*/
     free(argArray);
     exit(-1);
   }
@@ -117,8 +144,6 @@ int forkProcess(char *cmd, char *args) {
   { /* parent */
     fprintf(stderr,"[parent] process id: %d\n", (int) getpid());
     fprintf(stderr," [child] process id: %d\n", proc_id);
-    bg_pid[pid_index]=proc_id;
-    pid_index = pid_index==8? 0 : pid_index+1;
     //pid_t child_id = wait(&status);
 
     //printf("[parent] child %d returned: %d\n",
@@ -126,6 +151,46 @@ int forkProcess(char *cmd, char *args) {
   }
   return 0;
 }
+
+
+
+
+
+int cmd_wait(char* args){
+  char *cptr=args;
+  while(*cptr != '\0'){
+    while(*cptr == ' '){
+      cptr++;
+    }
+    if(*cptr=='\0') break;
+    int wordl=0;
+    char *endptr=cptr;
+    while(*endptr != ' '){
+      wordl++;
+      endptr++;
+      if(*endptr == '\0')break;
+    }
+    char * single_arg=(char*)malloc((wordl+1)*sizeof(char));
+    strncpy(single_arg,cptr,wordl);
+    strcat(single_arg,"\0");
+    struct bg_proc_status *bgpst_ptr= bg_proc_status_ptr_first;
+    while (bgpst_ptr !=NULL && single_arg != NULL) {
+      if(atoi(single_arg) == (int) bgpst_ptr->pid ){
+        printf("Process ID  %d\n", bgpst_ptr->pid);
+        printf(" Status:   %d\n", bgpst_ptr->status);
+        if(bgpst_ptr->errorno>0)
+          printf("  Error:  %s\n",strerror(bgpst_ptr->errorno) );
+        break;
+      }
+      bgpst_ptr = bgpst_ptr->next;
+    }
+    cptr=endptr;
+    cptr++;
+    printf(" -- ");
+  }
+  return 0;
+}
+
 
 int parseCommand(char *input) {
   // trim whitespaces
@@ -135,9 +200,6 @@ int parseCommand(char *input) {
 
   int inBackground = shouldStartInBackground(command);
 
-  // TODO check and implement PIPE
-  // TODO check and implement BACKGROUND PROCESS &
-
   // split in command and arguments
   char *cmd;
   char *args;
@@ -145,9 +207,9 @@ int parseCommand(char *input) {
   cmd = strtok(command, " ");
   args = strtok(NULL, "");
 
-  fprintf(stderr,"parse Command: %s\r\n", cmd); // DEBUG
-  fprintf(stderr,"with Arguments: %s\r\n", args); // DEBUG
-  fprintf(stderr,"background process: %d\r\n", inBackground); // DEBUG
+  //fprintf(stderr,"parse Command: %s\r\n", cmd); // DEBUG
+  //fprintf(stderr,"with Arguments: %s\r\n", args); // DEBUG
+  //fprintf(stderr,"background process: %d\r\n", inBackground); // DEBUG
 
   int result = 0;
   if (strcmp(cmd, "exit") == 0) {
@@ -155,9 +217,10 @@ int parseCommand(char *input) {
     fprintf(stderr,"terminating shell...\r\n");
     result = 1;
   } else if (strcmp(cmd, "wait") == 0) {
-    // exit console
-    fprintf(stderr,"wait\r\n");
-    result = 1;
+    char **argsArr=NULL;
+    printf(" Not correctly implemented. :-(");
+    result=cmd_wait(args);
+    free(argsArr);
   } else if (strcmp(cmd, "cd") == 0) {
     // cd command
 
@@ -183,7 +246,7 @@ int parseCommand(char *input) {
         strcat(exec_cmd, args);
       }
 
-      fprintf(stderr,"exec: %s\r\n", exec_cmd); // DEBUG
+  //    fprintf(stderr,"exec: %s\r\n", exec_cmd); // DEBUG
 
       int status = system(exec_cmd);
       fprintf(stderr,"status: %d\r\n", status); // DEBUG
@@ -223,7 +286,7 @@ int pipenize(char* input, int pipe_count){
       }
       if(cpid == 0) {// child PROCESS
           dup2(pipefd_arr[pipe_index][1],1);
-          fprintf(stderr,"\tChild process takes: %s\n",token_arr[--token_index] );
+        //  fprintf(stderr,"\tChild process takes: %s\n",token_arr[--token_index] );
           if(pipe_index >0){
             dup2(pipefd_arr[--pipe_index][0],0);
             continue;
@@ -235,31 +298,26 @@ int pipenize(char* input, int pipe_count){
       }
       else {
           dup2(pipefd_arr[pipe_index][0],0);
-          fprintf(stderr,"\tparent process parses: %s\n",token_arr[token_index] );
+        //  fprintf(stderr,"\tparent process parses: %s\n",token_arr[token_index] );
           int status = 0;
-          pid_t child_id = wait(&status);
-      		printf("[parent] child %d returned: %d\n",
-      		        child_id, WEXITSTATUS(status));
+        /*  pid_t child_id = */wait(&status);
+    //  		printf("[parent] child %d returned: %d\n",
+      //		        child_id, WEXITSTATUS(status));
           parseCommand(token_arr[token_index]);
           close(pipefd_arr[pipe_index][0]);
           break;
       }
     }
-
-
-
-
-
   return 0;
 }
+
 
 int main(void)
 {
   char input[MAX_CMD_LEN];
   char cwd[MAX_CWD_LEN];
-  pid_index=0;
+  bg_proc_status_ptr_first=NULL;
 
-  memset(bg_pid,0,8*sizeof(pid_t));
 
   int result = 0;
   while(result == 0) {
