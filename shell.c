@@ -12,6 +12,9 @@
 #define MAX_CWD_LEN 1024
 #define MAX_ARGS 100
 
+
+const char delim[2] = "|";
+
 char *trimwhitespace(char *str)
 {
   char *end;
@@ -65,7 +68,7 @@ int forkProcess(char *cmd, char *args) {
   pid_t proc_id;
 //  int status = 0;
 
-  
+
   proc_id = fork();
 
   if (proc_id < 0)
@@ -133,8 +136,8 @@ int parseCommand(char *input) {
   // split in command and arguments
   char *cmd;
   char *args;
-  const char delim[2] = " ";
-  cmd = strtok(command, delim);
+
+  cmd = strtok(command, " ");
   args = strtok(NULL, "");
 
   printf("parse Command: %s\r\n", cmd); // DEBUG
@@ -175,16 +178,70 @@ int parseCommand(char *input) {
         strcat(exec_cmd, args);
       }
 
-      printf("exec %s\r\n", exec_cmd); // DEBUG
+      printf("exec: %s\r\n", exec_cmd); // DEBUG
 
       int status = system(exec_cmd);
-      printf("status %d\r\n", status); // DEBUG
+      printf("status: %d\r\n", status); // DEBUG
 
       result = 0;
     }
   }
 
   return result;
+}
+
+int pipenize(char* input){
+
+  //int result=0;
+  char *token;
+
+// ensure to initiate strtok () only once
+  static int count = 0;
+  if(count == 0){
+    count = 1;
+    token = strtok(input, delim);
+  }else {
+    count++;
+    token = strtok(NULL, delim);
+  }
+
+  // if there is (still) a token in  input
+  if (token != NULL) {
+    printf("%s", token);
+    printf("\n\r");
+    int pipefd[2];
+    pid_t cpid;
+    //char buf;
+
+    if(pipe (pipefd) == -1){
+      perror("pipe");
+      exit(EXIT_FAILURE);
+    }
+    cpid = fork();
+    if(cpid==-1){
+      perror("fork");
+      exit(EXIT_FAILURE);
+    }
+    if(cpid == 0) {// child PROCESS
+        dup2(pipefd[0],0);
+        close(pipefd[1]);
+        input=strtok(NULL,"");
+        pipenize(input);
+        _exit(EXIT_SUCCESS);
+    }
+    else {/* Parent writes argv[1] to pipe */
+        close(pipefd[0]);          /* Close unused read end */
+        dup2(pipefd[1],1);
+        parseCommand(token);
+        close(pipefd[1]);          /* Reader will see EOF */
+        wait(NULL);                /* Wait for child */
+
+    }
+  } else {
+    return parseCommand(token);
+  }
+
+  return 0;
 }
 
 int main(void)
@@ -197,7 +254,7 @@ int main(void)
 
     if(getcwd(cwd, sizeof(cwd))==NULL) {
 		printf("%s\n",strerror(errno));
-		return -1;	
+		return -1;
 	}
 
     printf("%s > ", cwd);
@@ -207,22 +264,24 @@ int main(void)
       removeTrailingNewLine(input);
       trimwhitespace(input);
 
+
       // just parse when its not an empty string
       if (strcmp(input, "\0") != 0) {
-        result = parseCommand(input);
+        // first check if there is at least one pipe symbol in input
+        char *input_ptr=input;
+        while (*input_ptr != '\0') {
+              if (*input_ptr == '|') {
+                break;
+              }
+              input_ptr++;
+        }
+        // if pipe symbol was found we use pipenize
+        if(*input_ptr != '\0'){
+          result = pipenize(input);
+        }
+
+        else result = parseCommand(input);
       }
-
-      // tokenize commands
-      // const char delim[2] = "&";
-      // char *token;
-
-      // token = strtok(input, delim);
-
-      // while (token != NULL) {
-      //   printf("%s", token);
-      //   printf("\n\r");
-      //   token = strtok(NULL, delim);
-      // }
 
     }
   }
