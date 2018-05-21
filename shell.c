@@ -81,8 +81,8 @@ int forkProcess(char *cmd, char *args) {
   if (proc_id == 0)
   { /* child process */
     close(1);
-    fprintf(stderr,"[child]  process id: %d\n", (int) getpid());
-    fprintf(stderr,"[child]  arg_string: %s\r\n", args);
+    //fprintf(stderr,"[child]  process id: %d\n", (int) getpid());
+    //fprintf(stderr,"[child]  arg_string: %s\r\n", args);
 
     char **argArray = NULL;
     // makeArgArray(cmd, args, argArray);
@@ -103,17 +103,17 @@ int forkProcess(char *cmd, char *args) {
     }
 
     execvp(cmd, argArray);
-    fprintf(stderr,"[child]  command: %s\r\n", cmd);
+  //  fprintf(stderr,"[child]  command: %s\r\n", cmd);
     for (int j = 0; j < sizeof(argArray); ++j) {
-      fprintf(stderr,"[child]  args: %s\r\n", argArray[j]);
+      printf("[child]  args: %s\r\n", argArray[j]);
     }
-
     free(argArray);
     exit(-1);
   }
   else
   { /* parent */
-    printf("[parent] process id: %d\n", (int) getpid());
+    fprintf(stderr,"[parent] process id: %d\n", (int) getpid());
+    fprintf(stderr," [child] process id: %d\n", proc_id);
     //pid_t child_id = wait(&status);
 
     //printf("[parent] child %d returned: %d\n",
@@ -190,58 +190,57 @@ int parseCommand(char *input) {
   return result;
 }
 
-int pipenize(char* input){
+int pipenize(char* input, int pipe_count){
 
   //int result=0;
-  char *token;
-// ensure to initiate strtok () only once
-  static int count = 0;
-  printf("-> Enter pipenize() - recursion: %d, input: %s\n",count+1,input );
-  if(count == 0){
-    count = 1;
-    token = strtok(input, delim);
-  }else {
-    count++;
-    token = strtok(NULL, delim);
+  int token_count = pipe_count+1;
+  char *token_arr[token_count];
+
+  token_arr[0] = strtok(input, "|");
+  int pipefd_arr[pipe_count][2];
+  for (int i=1;i<pipe_count+1;i++) {
+      token_arr[i] = strtok(NULL, "|");
+      if(pipe(pipefd_arr[i]) <0) {
+        fprintf(stderr, "could not create pipe :-(\n");
+        return -1;
+      }
   }
-  // if there is (still) a token in  input
-  if (token != NULL) {
-    printf("%s", token);
-    printf("\n\r");
-    int pipefd[2];
+
+
     pid_t cpid;
-    //char buf;
+    int pipe_index=pipe_count-1;
+    int token_index = token_count-1;
+    while(pipe_index>=0){
+      cpid = fork();
+      if(cpid==-1){
+        perror("fork");
+        exit(EXIT_FAILURE);
+      }
+      if(cpid == 0) {// child PROCESS
+          dup2(pipefd_arr[pipe_index][1],1);
+          fprintf(stderr,"\tChild process takes: %s\n",token_arr[--token_index] );
+          if(pipe_index >0){
+            dup2(pipefd_arr[--pipe_index][0],0);
+            continue;
+          } else {
+            pipe_index--;
+            parseCommand(token_arr[--token_index]);
+          }
 
-    if(pipe (pipefd) == -1){
-      perror("pipe");
-      exit(EXIT_FAILURE);
+      }
+      else {
+          dup2(pipefd_arr[pipe_index][0],0);
+          fprintf(stderr,"\tparent process parses: %s\n",token_arr[token_index] );
+          wait(NULL);
+          parseCommand(token_arr[token_index]);
+          close(pipefd_arr[pipe_index][0]);
+          break;
+      }
     }
-    cpid = fork();
-    if(cpid==-1){
-      perror("fork");
-      exit(EXIT_FAILURE);
-    }
-    if(cpid == 0) {// child PROCESS
-        dup2(pipefd[0],0);
-        close(pipefd[1]);
-        input=strtok(NULL,"");
-        fprintf(stderr,"\tChild process takes: %s\n",input );
-        pipenize(input);
-        _exit(EXIT_SUCCESS);
-    }
-    else {/* Parent writes argv[1] to pipe */
-        close(pipefd[0]);          /* Close unused read end */
-        dup2(pipefd[1],1);
-        fprintf(stderr,"\tparent process parses: %s\n",token );
-        parseCommand(token);
-        close(pipefd[1]);          /* Reader will see EOF */
-        wait(NULL);                /* Wait for child */
 
-    }
-  } else {
-    fprintf(stderr,"\tparsing token: %s\n",token );
-    return parseCommand(token);
-  }
+
+
+
 
   return 0;
 }
@@ -271,15 +270,16 @@ int main(void)
       if (strcmp(input, "\0") != 0) {
         // first check if there is at least one pipe symbol in input
         char *input_ptr=input;
+        int pipe_count=0;
         while (*input_ptr != '\0') {
               if (*input_ptr == '|') {
-                break;
+                pipe_count++;
               }
               input_ptr++;
         }
         // if pipe symbol was found we use pipenize
-        if(*input_ptr != '\0'){
-          result = pipenize(input);
+        if(pipe_count>0){
+          result = pipenize(input,pipe_count);
         }
 
         else result = parseCommand(input);
